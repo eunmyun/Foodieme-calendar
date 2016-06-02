@@ -10,15 +10,23 @@
 import UIKit
 import EventKit
 
-class AddToCalendarViewController: UIViewController {
+class AddToCalendarViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSource {
 
+    var givenRecipe: Recipe!
+    var pictureIngredients : [String] = []
+    var imageURL: String!
+    
     var eventTitle : String = ""
     var dateString : String = ""
     var timeString : String = ""
+    var calendars : [String] = []
+    var calendarRow : Int = 0
+    //var calendars : [EKCalendar] = EKEventStore.calendarsForEntityType(.Event)[0]
     
     @IBOutlet weak var titleField: UITextField!
     @IBOutlet weak var dateField: UITextField!
     @IBOutlet weak var timeField: UITextField!
+    @IBOutlet weak var calendarPicker: UIPickerView!
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -28,6 +36,64 @@ class AddToCalendarViewController: UIViewController {
         dateField.userInteractionEnabled = false
         timeField.textColor = UIColor.lightGrayColor()
         timeField.userInteractionEnabled = false
+        
+        self.calendarPicker.dataSource = self
+        self.calendarPicker.delegate = self
+        
+        let eventStore = EKEventStore()
+        var event: EKEvent = EKEvent(eventStore: eventStore)
+        // 2
+        switch EKEventStore.authorizationStatusForEntityType(.Event) {
+        case .Authorized:
+            let calendars = eventStore.calendarsForEntityType(.Event)
+                as! [EKCalendar]
+            for one in calendars {
+                self.calendars.append(one.title)
+            }
+        case .Denied:
+            print("Access denied")
+        case .NotDetermined:
+            // 3
+            eventStore.requestAccessToEntityType(.Event, completion:
+                {[weak self] (granted: Bool, error: NSError?) -> Void in
+                    if granted {
+                        let calendars = eventStore.calendarsForEntityType(.Event)
+                            as! [EKCalendar]
+                        for one in calendars {
+                            self!.calendars.append(one.title)
+                        }
+                        
+                    } else {
+                        print("Access denied")
+                    }
+                })
+        default:
+            print("Case Default")
+        }
+        
+        /*let store = EKEventStore()
+        let calendars = store.calendarsForEntityType(.Event)
+            as! [EKCalendar]
+        for one in calendars {
+            self.calendars.append(one.title)
+        }*/
+        
+    }
+    
+    func numberOfComponentsInPickerView(pickerView: UIPickerView) -> Int {
+        return 1
+    }
+    
+    func pickerView(pickerView: UIPickerView, numberOfRowsInComponent component: Int) -> Int {
+        return calendars.count;
+    }
+    
+    func pickerView(pickerView: UIPickerView, titleForRow row: Int, forComponent component: Int) -> String! {
+        return calendars[row]
+    }
+    
+    func pickerView(pickerView: UIPickerView, didSelectRow row: Int, inComponent component: Int) {
+        self.calendarRow = row
     }
     
     @IBAction func clickTextbox(sender: UITextField) {
@@ -59,7 +125,15 @@ class AddToCalendarViewController: UIViewController {
     
     
     @IBAction func addEvent(sender: AnyObject) {
+        guard (dateField.textColor != UIColor.lightGrayColor() || timeField.textColor != UIColor.lightGrayColor()) else {
+            showAlert("please specify date and time")
+            return
+        }
+        
         let eventStore = EKEventStore()
+        insertEvent(eventStore)
+        
+        /*let eventStore = EKEventStore()
         var event: EKEvent = EKEvent(eventStore: eventStore)
         // 2
         switch EKEventStore.authorizationStatusForEntityType(.Event) {
@@ -80,7 +154,7 @@ class AddToCalendarViewController: UIViewController {
                 })
         default:
             print("Case Default")
-        }
+        }*/
     }
     
     
@@ -89,14 +163,14 @@ class AddToCalendarViewController: UIViewController {
         let calendars = store.calendarsForEntityType(.Event)
             as! [EKCalendar]
         
-        for calendar in calendars {
+        //for calendar in calendars {
             // 2
-            if calendar.title == "ioscreator" {
+            //if calendar.title == "ioscreator" {
                 // 3
-                
+        let calendar = calendars[calendarRow]
                 let dateFormatter = NSDateFormatter()
                 dateFormatter.dateFormat = "dd-MM-yyyy h:mm a"
-                var dateAsString = "\(dateString) \(timeString)"
+                let dateAsString = "\(dateString) \(timeString)"
                 let startDate = dateFormatter.dateFromString(dateAsString)!
                 
                 let endDate = startDate.dateByAddingTimeInterval(1 * 60 * 60)
@@ -104,7 +178,7 @@ class AddToCalendarViewController: UIViewController {
  
                 // 4
                 // Create Event
-                var event = EKEvent(eventStore: store)
+                let event = EKEvent(eventStore: store)
                 event.calendar = calendar
                 
                 event.title = titleField.text!
@@ -126,8 +200,25 @@ class AddToCalendarViewController: UIViewController {
                     print("An error occured \(theError)")
                 }
                 //}
-            }
-        }
+            //}
+            
+            showAlert("Event successfully added to Calendar")
+        //}
+        
+    }
+    
+    override func prepareForSegue(segue: UIStoryboardSegue, sender: AnyObject?) {
+        let DestViewController: PreparationViewController = segue.destinationViewController as! PreparationViewController
+        DestViewController.givenRecipe = self.givenRecipe
+        DestViewController.pictureIngredients = self.pictureIngredients
+        DestViewController.imageURL = self.imageURL
+    }
+    
+    func showAlert(message: String) {
+        let alert = UIAlertController(title: "Settings", message: "\(message)", preferredStyle: UIAlertControllerStyle.Alert)
+        alert.addAction(UIAlertAction(title: "OK", style: UIAlertActionStyle.Default, handler: nil))
+        self.presentViewController(alert, animated: true, completion: nil)
+
     }
     
     
